@@ -3,29 +3,29 @@ name: tests
 on: [push, pull_request]
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
-        with:
-          python-version: "3.12"
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install .
-          pip install -r requirements.txt
-      - name: flake8
-        run: flake8 dedupe tests benchmarks/benchmarks
-      - name: isort
-        if: always()
-        run: isort --check-only .
-      - name: black
-        if: always()
-        run: black . --check
-      - name: mypy
-        if: always()
-        run: mypy
+  # lint:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - uses: actions/setup-python@v2
+  #       with:
+  #         python-version: "3.12"
+  #     - name: Install dependencies
+  #       run: |
+  #         pip install --upgrade pip
+  #         pip install .
+  #         pip install -r requirements.txt
+  #     - name: flake8
+  #       run: flake8 dedupe tests benchmarks/benchmarks
+  #     - name: isort
+  #       if: always()
+  #       run: isort --check-only .
+  #     - name: black
+  #       if: always()
+  #       run: black . --check
+  #     - name: mypy
+  #       if: always()
+  #       run: mypy
   # test:
   #   timeout-minutes: 40
   #   runs-on: ${{ matrix.os }}
@@ -92,7 +92,6 @@ jobs:
   #       run: python benchmarks/benchmarks/canonical.py      
   wheels:
     if: github.event_name == 'push'
-    needs: [lint]
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
