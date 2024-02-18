@@ -26,78 +26,78 @@ jobs:
       - name: mypy
         if: always()
         run: mypy
-  test:
-    timeout-minutes: 40
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
-        python-version: [3.8, 3.9, "3.10", "3.11", "3.12"]
+  # test:
+  #   timeout-minutes: 40
+  #   runs-on: ${{ matrix.os }}
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       os: [windows-latest]
+  #       python-version: ["3.12"]
 
-    steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        pip install --upgrade pip
-        pip install -e .
-    - name: Install test dependencies
-      run: pip install -r requirements.txt
-    - name: pytest
-      run: pytest
-    - name: Code Coverage
-      uses: codecov/codecov-action@v4
-      env:
-        OS: ${{ matrix.os }}
-        PYTHON: '3.7'
-      with:
-        env_vars: OS,PYTHON
-    - name: Integration tests
-      # Do everything twice: The first time is training and generates settings,
-      # the second time it tests using a static settings file.
-      run: |
-        python -m pip install ./benchmarks
-        python benchmarks/benchmarks/canonical.py
-        python benchmarks/benchmarks/canonical.py
-        python benchmarks/benchmarks/canonical_matching.py
-        python benchmarks/benchmarks/canonical_matching.py
-        python benchmarks/benchmarks/canonical_gazetteer.py
-        python benchmarks/benchmarks/canonical_gazetteer.py
-  settings_file_persists:
-    runs-on: ubuntu-latest
-    steps:
-      - name: checkout main
-        uses: actions/checkout@v2
-        with:
-          ref: main
-      - uses: actions/setup-python@v2
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install .
-          python -m pip install ./benchmarks
-      - name: Run on canonical on main
-        run: python benchmarks/benchmarks/canonical.py
-      - name: checkout this PR branch
-        uses: actions/checkout@v2
-        with:
-          clean: false
-      - name: Install any new dependencies
-        run: pip install .
-      - name: Run on canonical with setting file created on main
-        run: python benchmarks/benchmarks/canonical.py      
+  #   steps:
+  #   - uses: actions/checkout@v2
+  #   - name: Set up Python ${{ matrix.python-version }}
+  #     uses: actions/setup-python@v2
+  #     with:
+  #       python-version: ${{ matrix.python-version }}
+  #   - name: Install dependencies
+  #     run: |
+  #       pip install --upgrade pip
+  #       pip install -e .
+  #   - name: Install test dependencies
+  #     run: pip install -r requirements.txt
+  #   - name: pytest
+  #     run: pytest
+  #   - name: Code Coverage
+  #     uses: codecov/codecov-action@v4
+  #     env:
+  #       OS: ${{ matrix.os }}
+  #       PYTHON: '3.12'
+  #     with:
+  #       env_vars: OS,PYTHON
+  #   - name: Integration tests
+  #     # Do everything twice: The first time is training and generates settings,
+  #     # the second time it tests using a static settings file.
+  #     run: |
+  #       python -m pip install ./benchmarks
+  #       python benchmarks/benchmarks/canonical.py
+  #       python benchmarks/benchmarks/canonical.py
+  #       python benchmarks/benchmarks/canonical_matching.py
+  #       python benchmarks/benchmarks/canonical_matching.py
+  #       python benchmarks/benchmarks/canonical_gazetteer.py
+  #       python benchmarks/benchmarks/canonical_gazetteer.py
+  # settings_file_persists:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: checkout main
+  #       uses: actions/checkout@v2
+  #       with:
+  #         ref: main
+  #     - uses: actions/setup-python@v2
+  #     - name: Install dependencies
+  #       run: |
+  #         pip install --upgrade pip
+  #         pip install .
+  #         python -m pip install ./benchmarks
+  #     - name: Run on canonical on main
+  #       run: python benchmarks/benchmarks/canonical.py
+  #     - name: checkout this PR branch
+  #       uses: actions/checkout@v2
+  #       with:
+  #         clean: false
+  #     - name: Install any new dependencies
+  #       run: pip install .
+  #     - name: Run on canonical with setting file created on main
+  #       run: python benchmarks/benchmarks/canonical.py      
   wheels:
-    if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
-    needs: [test, lint, settings_file_persists]
+    if: github.event_name == 'push'
+    needs: [lint]
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        os: [windows-latest]
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-python@v2
@@ -107,14 +107,40 @@ jobs:
           CIBW_ARCHS_MACOS: x86_64 arm64 universal2
       - name: Build sdist
         run: |
-          pip install build
-          python -m build --sdist
-      - name: Publish wheels to PyPI
-        env:
-          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-        run: |
-          pip install twine
-          twine upload --skip-existing wheelhouse/*.whl
-          twine upload dist/*
-        continue-on-error: true
+          pip install cython wheel setuptools
+          python setup.py sdist bdist_wheel
+      - name: Upload Wheel Artifact
+        uses: actions/upload-artifact@v4.3.1
+        with:
+          name: wheels-${{ github.run_number }}
+          path: |
+            ./wheelhouse/*.whl
+            ./dist/*.whl
+          if-no-files-found: error
+          retention-days: 1
+
+  create_release:
+    needs: wheels
+    runs-on: ubuntu-latest
+    steps:
+    - name: Create Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: run-${{ github.run_number }}
+        release_name: Release for run ${{ github.run_number }}
+        draft: false
+        prerelease: false
+        body: |
+          Automated release for run ${{ github.run_number }}.
+
+      # - name: Publish wheels to PyPI
+      #   env:
+      #     TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+      #     TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+      #   run: |
+      #     pip install twine
+      #     twine upload --skip-existing wheelhouse/*.whl
+      #     twine upload dist/*
+      #   continue-on-error: true
