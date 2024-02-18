@@ -50,7 +50,7 @@ MailingList = "https://groups.google.com/forum/#!forum/open-source-deduplication
 
 
 [build-system]
-requires = ["setuptools",
+requires = ["setuptools ~= 69.1.0",
             "wheel",
             "cython"]
 build-backend = "setuptools.build_meta"
